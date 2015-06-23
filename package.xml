@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<package format="2">
+    <name>timesync_tester</name>
+    <version>0.0.0</version>
+    <description>copilot</description>
+    
+    <maintainer email="matfaessler@gmail.com">Matthias Fässler</maintainer>
+    <maintainer email="fly.fontana@gmail.com">Flavio Fontana</maintainer>
+    <license>GNU GPL</license>
+    
+    <buildtool_depend>catkin</buildtool_depend>
+    <buildtool_depend>catkin_simple</buildtool_depend>
+    
+    <depend>roscpp</depend>
+    <depend>eigen_catkin</depend>
+    <depend>std_msgs</depend>
+    <build_depend>message_generation</build_depend>
+    
+    
+    <export>
+        
+    </export>
+</package>
