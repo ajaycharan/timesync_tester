@@ -57,11 +57,7 @@ TimeSyncServer::~TimeSyncServer()
 
 void TimeSyncServer::spinThread()
 {
-  while(thread_running_ && ros::ok())
-  {
-    ros::spinOnce();
-    usleep(0.001);
-  }
+  ros::spin();
 }
 
 void TimeSyncServer::msgCallback(const timesync_tester::TimeMsg::ConstPtr &msg)
@@ -77,13 +73,13 @@ void TimeSyncServer::recordData()
 
   int seqence_number;
 
-  while(seqence_number<50 && ros::ok())
+  while(seqence_number<10 && ros::ok())
   {
     timesync_tester::TimeMsg msg;
     msg.seqence_number = seqence_number++;
     msg.outgoing_stamp = ros::Time::now();
     ping_pub_.publish(msg);
-    ros::Duration(0.05).sleep();
+    ros::Duration(1.0).sleep();
   }
 }
 
