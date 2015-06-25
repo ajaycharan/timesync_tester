@@ -8,8 +8,6 @@
 
 #include "ros/ros.h"
 #include "timesync_tester/TimeMsg.h"
-#include <thread>
-#include <memory>
 
 class TimeSyncClient
 {
@@ -39,9 +37,17 @@ TimeSyncClient::~TimeSyncClient()
 
 void TimeSyncClient::msgCallback(const timesync_tester::TimeMsg::ConstPtr &msg)
 {
+  static int prev_seqence_number = -1;
   timesync_tester::TimeMsg local_msg(*msg);
   local_msg.pong_stamp = ros::Time::now();
   pong_pub_.publish(local_msg);
+  //printf("id = %d\n", msg->seqence_number);
+  if(prev_seqence_number+1 != msg->seqence_number)
+  {
+	printf("dropped package: expected: %d received: %d\n", prev_seqence_number+1, msg->seqence_number);
+  }
+  prev_seqence_number = msg->seqence_number;
+
 }
 
 int main(int argc, char **argv)
