@@ -7,6 +7,8 @@
 
 #include "ros/ros.h"
 #include "timesync_tester/TimeMsg.h"
+#include "timesync_tester/ResultMsg.h"
+
 #include <thread>
 #include <memory>
 #include <atomic>
@@ -19,15 +21,20 @@ public:
   void msgCallback(const timesync_tester::TimeMsg::ConstPtr &msg);
 
   ros::NodeHandle nh_;
+  ros::NodeHandle pnh_;
+
 
   ros::Publisher ping_pub_;
   ros::Subscriber pong_sub_;
+  ros::Publisher debug_pub_;
+
 
   std::list<timesync_tester::TimeMsg> msg_buffer_;
 
   std::unique_ptr<std::thread> spin_thread_;
 
   std::atomic_bool thread_running_;
+  int number_of_measurements_;
 
   void spinThread();
   void recordData();
@@ -39,13 +46,15 @@ public:
 };
 
 TimeSyncServer::TimeSyncServer() :
-    nh_(), thread_running_(false)
+    nh_(), thread_running_(false), pnh_("~")
 {
   ping_pub_ = nh_.advertise<timesync_tester::TimeMsg>("ping", 1);
-  pong_sub_ = nh_.subscribe("pong", 1, &TimeSyncServer::msgCallback, this);
-
+  pong_sub_ = nh_.subscribe("pong", 1, &TimeSyncServer::msgCallback, this, ros::TransportHints().tcpNoDelay());
+  debug_pub_ = nh_.advertise<timesync_tester::ResultMsg>("results", 1);
   thread_running_ = true;
   spin_thread_ = std::unique_ptr < std::thread > (new std::thread(&TimeSyncServer::spinThread, this));
+  pnh_.param<int>("number_of_measurements", number_of_measurements_, 10);
+
 }
 
 TimeSyncServer::~TimeSyncServer()
@@ -96,6 +105,12 @@ void TimeSyncServer::msgCallback(const timesync_tester::TimeMsg::ConstPtr &msg)
   timesync_tester::TimeMsg local_msg(*msg);
   local_msg.received_stamp = ros::Time::now();
   msg_buffer_.push_back(local_msg);
+  timesync_tester::ResultMsg result_msg;
+  result_msg.seqence_number = msg->seqence_number;
+  result_msg.ping_pong_time = (local_msg.received_stamp - msg->outgoing_stamp).toSec();
+  double estimated_receive_time = (local_msg.received_stamp.toSec() + msg->outgoing_stamp.toSec()) / 2.0;
+  result_msg.offset = msg->pong_stamp.toSec() - estimated_receive_time;
+  debug_pub_.publish(result_msg);
 }
 
 void TimeSyncServer::recordData()
@@ -104,13 +119,13 @@ void TimeSyncServer::recordData()
 
   int seqence_number;
 
-  while (seqence_number < 10 && ros::ok())
+  while (seqence_number < number_of_measurements_ && ros::ok())
   {
     timesync_tester::TimeMsg msg;
     msg.seqence_number = seqence_number++;
     msg.outgoing_stamp = ros::Time::now();
     ping_pub_.publish(msg);
-    ros::Duration(0.5).sleep();
+    ros::Duration(1.0).sleep();
   }
 }
 
@@ -125,19 +140,13 @@ void TimeSyncServer::evalData()
   {
     double ping_pong_time = (it->received_stamp - it->outgoing_stamp).toSec();
     double estimated_receive_time = (it->received_stamp.toSec() + it->outgoing_stamp.toSec()) / 2.0;
-    double slave_offset = it->outgoing_stamp.toSec() + ping_pong_time * 0.5 - it->pong_stamp.toSec();
+    double slave_offset = it->pong_stamp.toSec() - estimated_receive_time;
     printf("%d [ %.2fms, %.2fms ]\n", it->seqence_number, ping_pong_time * 1000.0, slave_offset * 1000.0);
-
-    printf("%.4f %.4f %.4f\n", it->outgoing_stamp.toSec(), it->pong_stamp.toSec(), it->received_stamp.toSec() );
-
-
     ping_pong_times.push_back(ping_pong_time);
     slave_offsets.push_back(slave_offset);
   }
   printf("ping times [ %.2f ms, %e ms ]\n", calculateMean(ping_pong_times) * 1000.0, calculateVariane(ping_pong_times) * 1000.0);
   printf("slave offset [ %.2f ms, %e ms ]\n", calculateMean(slave_offsets) * 1000.0, calculateVariane(slave_offsets) * 1000.0);
-
-  printf("negative number means client stamps to early\n");
 }
 
 int main(int argc, char **argv)

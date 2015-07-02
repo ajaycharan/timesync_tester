@@ -1,0 +1,12 @@
+<launch>
+    <arg name="quad_name"/>
+        <!--    starts the feedback bridge via ssh-->
+        <machine name="$(arg quad_name)" address="$(arg quad_name)" env-loader="scripts/env.sh" user="odroid"/>
+        <node machine="$(arg quad_name)" pkg="timesync_tester" type="timesync_client" name="timesync_client" output="screen" >
+        </node>
+        
+        <node pkg="timesync_tester" type="timesync_server" name="timesync_server" output="screen" >
+            <param name="number_of_measurements" value="1000" />
+        </node>
+</launch>
+
