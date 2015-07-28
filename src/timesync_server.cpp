@@ -102,15 +102,31 @@ void TimeSyncServer::spinThread()
 
 void TimeSyncServer::msgCallback(const timesync_tester::TimeMsg::ConstPtr &msg)
 {
+  ros::Time recv_stamp = ros::Time::now();
   timesync_tester::TimeMsg local_msg(*msg);
-  local_msg.received_stamp = ros::Time::now();
+  local_msg.received_stamp =recv_stamp;
   msg_buffer_.push_back(local_msg);
   timesync_tester::ResultMsg result_msg;
   result_msg.seqence_number = msg->seqence_number;
-  result_msg.ping_pong_time = (local_msg.received_stamp - msg->outgoing_stamp).toSec();
-  double estimated_receive_time = (local_msg.received_stamp.toSec() + msg->outgoing_stamp.toSec()) / 2.0;
-  result_msg.offset = msg->pong_stamp.toSec() - estimated_receive_time;
-  debug_pub_.publish(result_msg);
+
+  ros::Duration pong_duration = local_msg.received_stamp - msg->outgoing_stamp;
+
+  ros::Time estimated_receive_time = local_msg.received_stamp - ros::Duration(pong_duration.toSec() / 2.0);
+
+  std::cout << "local_msg.outgoing_stamp: " << local_msg.outgoing_stamp << std::endl;
+  std::cout << "local_msg.received_stamp: " << local_msg.received_stamp << std::endl;
+  std::cout << "local_msg.pong_stamp:     " << local_msg.pong_stamp << std::endl;
+  std::cout << "estimated_receive_time:   " << estimated_receive_time << std::endl;
+
+  result_msg.offset = (msg->pong_stamp - estimated_receive_time).toSec() * 1000.0;
+  result_msg.ping_pong_time = pong_duration.toSec() * 1000.0;
+
+  printf("pingpong:\t%.5fms\n", result_msg.ping_pong_time);
+  printf("offset:\t\t%.5fms\n", result_msg.offset);
+
+
+    debug_pub_.publish(result_msg);
+
 }
 
 void TimeSyncServer::recordData()
@@ -119,7 +135,8 @@ void TimeSyncServer::recordData()
 
   int seqence_number;
 
-  while (seqence_number < number_of_measurements_ && ros::ok())
+//  while (seqence_number < number_of_measurements_ && ros::ok())
+  while (true && ros::ok())
   {
     timesync_tester::TimeMsg msg;
     msg.seqence_number = seqence_number++;
